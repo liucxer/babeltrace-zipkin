@@ -24,11 +24,11 @@ class HttpClient(object):
         :param host: zipkin endpoint object
 
         :returns: zipkin binary annotation object
-        """     
+        """
         return ({
             "key": key,
             "value": value,
-            "endpoint": 
+            "endpoint":
                 {
                     "serviceName": service_name,
                     "ipv4": ipv4,
@@ -36,7 +36,13 @@ class HttpClient(object):
                 }
             })
 
-    def create_time_annotation(self, service_name, ipv4, port, timestamp, value):
+    def create_endpoint(self, service_name, ipv4, port):
+        return ({
+            "serviceName": service_name,
+            "ipv4": ipv4,
+            "port": port
+            })
+    def create_time_annotation(self, timestamp, value):
         """
         Creates an annotation thrift object
 
@@ -47,21 +53,14 @@ class HttpClient(object):
         :param value: Zipkin value for the annotation, like CS (client start), SS (server send) or SR (server receive)
 
         :returns: zipkin annotation object
-        """   
+        """
         return ({
-            "endpoint": 
-                {
-                    "serviceName": service_name,
-                    "ipv4": ipv4,
-                    "port": port
-                },
             "timestamp": timestamp,
             "value": value
             })
 
     def create_span(self, span_id, parent_span_id, trace_id, trace_name,
-                    annotations, binary_annotations, timestamp=None,
-                    debug=False):
+                    annotations,local_endpoint, timestamp=None):
         """
         Creates a zipkin span object.
 
@@ -78,9 +77,8 @@ class HttpClient(object):
             "parentId": format(parent_span_id, 'x'),
             "timestamp": timestamp,
             "duration": None,
-            "annotations": annotations,
-            "binaryAnnotations": binary_annotations,
-            "debug": debug
+            "localEndpoint": local_endpoint,
+            "annotations": annotations
             }])
 
     def send_annotations(self, events):
@@ -109,6 +107,7 @@ class HttpClient(object):
                     event_name = event["event"]
                 timestamp = str(event.timestamp)[:-3]
                 provider, kind = name.split(":")
+                local_endpoint=self.create_endpoint(service_name, ip, port)
             except:
                 continue
 
@@ -118,18 +117,18 @@ class HttpClient(object):
                 trace_id = int(trace_id)
                 parent_span_id =  int(parent_span_id)
                 json_span = self.create_span(span_id, parent_span_id,
-                                             (trace_id), trace_name, [],
-                                             [annotation])
+                                             (trace_id), trace_name,
+                                             [annotation], local_endpoint)
                 self.send_to_zipkin(json_span)
 
             elif (kind == "timestamp" or kind == "timestamp_core"):
-                annotation = self.create_time_annotation(service_name, ip, port, timestamp, event_name)
+                annotation = self.create_time_annotation(timestamp, event_name)
                 span_id = int(span_id)
                 trace_id = int(trace_id)
                 parent_span_id =  int(parent_span_id)
                 json_span = self.create_span(span_id, parent_span_id,
                                              (trace_id), trace_name,
-                                             [annotation], [],
+                                             [annotation], local_endpoint,
                                              timestamp=timestamp)
                 self.send_to_zipkin(json_span)
 
@@ -137,7 +136,6 @@ class HttpClient(object):
         url = 'http://'+self.host+':'+str(self.port) # Set destination URL here
         params = span
         headers = {"Content-type": "application/json", "Accept": "text/plain"}
-        self.conn.request("POST", "/api/v1/spans", params, headers)
+        self.conn.request("POST", "/api/v2/spans", params, headers)
         response = self.conn.getresponse().read()
-
-
+        params = span
