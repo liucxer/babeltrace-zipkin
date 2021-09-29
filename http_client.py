@@ -14,7 +14,7 @@ class HttpClient(object):
         self.host = host
         self.conn = http.client.HTTPConnection(self.host+':'+str(self.port))
 
-    def create_binary_annotation(self, service_name, ipv4, port, key, value):
+    def create_binary_annotation(self, key, value):
         """
         Creates a binary annotation thrift object
 
@@ -26,14 +26,7 @@ class HttpClient(object):
         :returns: zipkin binary annotation object
         """
         return ({
-            "key": key,
-            "value": value,
-            "endpoint":
-                {
-                    "serviceName": service_name,
-                    "ipv4": ipv4,
-                    "port": port
-                }
+            key: value
             })
 
     def create_endpoint(self, service_name, ipv4, port):
@@ -60,7 +53,7 @@ class HttpClient(object):
             })
 
     def create_span(self, span_id, parent_span_id, trace_id, trace_name,
-                    annotations,local_endpoint, timestamp=None):
+                    annotations,local_endpoint, timestamp=None, tags=None):
         """
         Creates a zipkin span object.
 
@@ -78,7 +71,8 @@ class HttpClient(object):
             "timestamp": timestamp,
             "duration": None,
             "localEndpoint": local_endpoint,
-            "annotations": annotations
+            "annotations": annotations,
+            "tags": tags
             }])
 
     def send_annotations(self, events):
@@ -112,13 +106,13 @@ class HttpClient(object):
                 continue
 
             if (kind == "keyval_integer" or kind == "keyval_string"):
-                annotation = self.create_binary_annotation(service_name, ip, port, event["key"], str(event["val"]))
+                tags = self.create_binary_annotation(event["key"], str(event["val"]))
                 span_id = int(span_id)
                 trace_id = int(trace_id)
                 parent_span_id =  int(parent_span_id)
                 json_span = self.create_span(span_id, parent_span_id,
                                              (trace_id), trace_name,
-                                             [annotation], local_endpoint)
+                                             [], local_endpoint, None, tags)
                 self.send_to_zipkin(json_span)
 
             elif (kind == "timestamp" or kind == "timestamp_core"):
